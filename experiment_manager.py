@@ -1,14 +1,23 @@
+import os
+import sys
 import typing
 from typing import Iterable
+from copy import deepcopy
+import numpy as np
 from beautifultable import BeautifulTable
 from dataclasses import dataclass
+import Labber
+
+sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
+import Labber_util as lu
+
 
 @dataclass
-class Parameter:
+class Parameter:  # TODO - I realized this class can be used for output data as well. consider change the name
     """
     a physical parameter with name, value, units.
     """
-    name:str
+    name: str
     value: typing.Any
     units: str = 'n.u.'
     is_iterated = None
@@ -35,7 +44,7 @@ class Parameter:
             self.is_iterated = is_iterated
 
 
-class Config:
+class Config:  # TODO - I realized this class can be used for output data as well. consider change the name
     """
     this is a package for a list of Parameter objects
     with some useful methods.
@@ -47,15 +56,25 @@ class Config:
         creates a Config object from a list of Parameter objects
         :param param_list: a list of Parameter objects
         """
-        self.param_list = param_list
+        self.param_list = list(param_list)
         for param in self.param_list:
             setattr(self, param.name, param)
+
+    def add_parameter(self, param: Parameter):
+        self.param_list.append(param)
+        setattr(self, param.name, param)
 
     def get_dict(self):
         d = {}
         for param in self.param_list:
             d[param.name] = param
         return d
+
+    def get_values(self):
+        values = []
+        for param in self.param_list:
+            values.append(param.value)
+        return values
 
     def get_iterables(self):
         iter_list = []
@@ -84,7 +103,37 @@ class Config:
         return table
 
     def is_constant(self):
-        pass #TODO - implement
+        pass  # TODO - implement
+
+    def get_labber_step_list(self):
+        iterated_config = Config(*self.get_iterables())  # build a new config with just the iterables of self
+        steplist = []
+        for param in iterated_config.param_list:
+            steplist.append(dict(name=param.name, unit=param.units, values=param.value))
+        return steplist
+
+    def get_labber_log_list(self):
+        # thinking about the Config object as an output data
+        loglist = []
+        for param in self.param_list:
+            loglist.append(dict(name=param.name, unit=param.units, vector=param.is_iterated))
+        return loglist
+
+
+def get_labber_trace(output_config_list: list[Config]):
+    labber_dict = {}
+
+    for param in output_config_list[0].param_list:
+        labber_dict[param.name] = []
+
+    for c in output_config_list:
+        for param in c.param_list:
+            labber_dict[param.name].append(param.value)
+    for param in output_config_list[0].param_list:
+        if not param.is_iterated:
+             labber_dict[param.name] = np.array(labber_dict[param.name])
+
+    return labber_dict
 
 
 class Experiment:
@@ -99,13 +148,29 @@ class Experiment:
     def run(self, config: Config):
         raise NotImplemented('run method not implemented')
 
-    def one_dimensional_sweep(self,const_config:Config, variable_param:Parameter):
+    def one_dimensional_sweep(self, const_config: Config, variable_param: Parameter, save_to_labber=False):
         """
         execute self.run in a loop on a certain variable parameter
         :param const_config: a Config object without any iterated Parameters TODO: input verification
         :param variable_param: : an iterated Parameter TODO: input verification
         :return:
         """
+
+        result = []
+        for val in variable_param.value:
+            current_param = Parameter(variable_param.name, val, units=variable_param.units)
+            current_config = deepcopy(const_config)
+            current_config.add_parameter(current_param)
+            result.append(self.run(current_config))
+
+        labber_trace = get_labber_trace(result)
+        if save_to_labber:
+            log_name = lu.get_log_name('test_exp_new')  # TODO: automatic renaming
+            logfile = Labber.createLogFile_ForData(log_name, result[0].get_labber_log_list(),
+                                                   Config(variable_param).get_labber_step_list())
+            logfile.addEntry(get_labber_trace(result))
+
+        return dict(output_config=result, labber_trace=labber_trace)
 
         product = []
         vector = []
@@ -122,25 +187,29 @@ class Experiment:
 
         return dict(product_trace=product_trace, vector_traces=vector_traces)
 
+
 class TestExperiment(Experiment):
 
-    def run(self, config:Config):
+    def run(self, config: Config):
+        # TODO : verify that config is constant (first need to implement an is_const method for config)
         product = 1
         for param in config.param_list:
+            product = product * param.value
 
+        vector = np.array(config.get_values())
 
-
-
-
-
-
-
-
+        output_config = Config(Parameter('product', product),
+                               Parameter('vector', vector))
+        return output_config
 
 
 ########################################################################################################################
 config = Config(Parameter('x', 5, 'a.u.'),
                 Parameter('y', 4.5, 'a.u.'),
-                Parameter('z', [1, 2, 3, 4]))
+                Parameter('z', 3))
 
 print(config.get_metadata_table())
+
+e = TestExperiment()
+
+result = e.one_dimensional_sweep(config, Parameter('v', np.linspace(0,10,10)), save_to_labber=True)
