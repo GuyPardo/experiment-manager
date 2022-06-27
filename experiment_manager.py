@@ -26,13 +26,14 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
 
     def __init__(self, name: str, value, units='n.u.', is_iterated=None):
         """
-
+        creates a Parameter object
         :param name: str -  name of the parameter
         :param value: any type -  value of the parameter
         :param units: str  - physical units of the parameter, by default 'n.u.' = no units, which is not exactly the same thing as a.u. (arbitrary units).
         :param is_iterated: bool. detemines whether the value is constant or iterated. if iterated, then value should be an Iterable.
                                     by default self.is_iterated is defined according to whether value is an Iterable, but thie can be changed if you want, for example, a constant value that is a list.
         """
+
         self.name = name
         self.value = value
         self.units = units
@@ -48,11 +49,12 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
 
 class Config:  # TODO - I realized this class can be used for output data as well. consider changing the name
     """
-    this is a package for a list of Parameter objects
+    this is a package-class for a list of Parameter objects
     with some useful methods.
     I am assuming that the user is not going to change attributes of this class once an object is created. TODO: fix this.
     """
 
+    # TODO easier access to values?
     def __init__(self, *param_list):
         """
         creates a Config object from a list of Parameter objects
@@ -81,8 +83,6 @@ class Config:  # TODO - I realized this class can be used for output data as wel
                 self.param_list[kwargs["index"]].is_iterated = kwargs["is_iterated"]
             else:
                 self.param_list[kwargs["index"]].is_iterated = isinstance(kwargs["value"], Iterable)
-
-
 
     def get_dict(self):
         d = {}
@@ -170,10 +170,11 @@ class Experiment:
     def run(self, config: Config):
         raise NotImplemented('run method not implemented')
 
-    def one_dimensional_sweep(self, config: Config,  save_to_labber=False):
+    def one_dimensional_sweep(self, config: Config, save_to_labber=False):
         """
         execute self.run in a loop on a certain variable parameter
         :param config: a Config object with exactly one iterated Parameters  (and the others are constants)TODO: input verification
+        :param save_to_labber:bool: whether to save the data in a new labber log
         :return: a dict with two entries: 'output_config' --> a list of Config objects with the data,
                     'labber_trace'--> a dict that can be inputted to labber's addEntry method
         """
@@ -196,47 +197,70 @@ class Experiment:
             logfile.setComment(str(config.get_metadata_table()))
         return dict(output_config=result, labber_trace=labber_trace)
 
-    def sweep(self, config, save_to_labber=True):
-        # TODO this wokrs but there is something wrong with variable order
-        # I think i fixed it.  now the convention is that the last varialbe is the inner-most loop
-        # and we reverse the labber step list in stead.
-        #
+    def sweep(self, config, save_to_labber=True, labber_log_name=None):
+        """
+        executes self.run(...) in an N-dimneional loop with N equals the number of iterated Parameters ("variables") in
+         config.
+        :param config: a Config object with some iterated Parameters ("varialbes") and some non-iterated ones ("constants)
+        :param save_to_labber: bool.
+        :param labber_log_name: str, optional. if not supplied use automatic naming scheme #TODO : describe here the scheme
+        :return: none currently. for now I want to use the save_to_labber feature anyway.
+        TODO: save the data in python as well. his will be more important for asynchronic experiments
+        """
 
-        constant_config = Config(*config.get_constants())
-        variable_config = Config(*config.get_iterables())
+        variable_config = Config(*config.get_iterables())  # a Config with only the variables
 
-        # the first parameter is the trace parameter
+        # the last variable is the trace parameter (inner-most loop):
         tracing_parameter = variable_config.param_list[-1]
-        trace_list = variable_config.get_labber_step_list()
 
+        # get labber step list:
+        step_list = variable_config.get_labber_step_list()
+
+        # create a constant configuration for test run
         curr_config = deepcopy(config)
-        print(variable_config.param_list)
         for variable in variable_config.param_list:
             curr_config.set_parameter(name=variable.name, value=0)
-        print(curr_config.param_list)
+
+        # test run
         test_result = self.run(curr_config)
+
+        # get labber log list
         log_list = test_result.get_labber_log_list()
 
-        curr_config.set_parameter(name = tracing_parameter.name, value  = tracing_parameter.value)
+        # add back the tracing parameter as an iterated Parameter
+        curr_config.set_parameter(name=tracing_parameter.name, value=tracing_parameter.value)
 
-        #print(log_list)
-        #print(trace_list)
         if save_to_labber:
-            log_name = lu.get_log_name('test_sweep_new')  # TODO automate naming
-            logfile = Labber.createLogFile_ForData(log_name, log_list, trace_list)
-            logfile.setComment(str(config.get_metadata_table()))
-        # variable_config.param_list.reverse()
-        outer_variables = Config(*variable_config.param_list[:-1])  # all but the inner most loop
-        print(outer_variables.param_list)
-        for vals in iter.product(*outer_variables.get_values()):
-            for i, param in enumerate(outer_variables.param_list):
-                print(vals)
-                curr_config.set_parameter(name=param.name, value=vals[i])
-                print(curr_config.param_list)
-                result = self.one_dimensional_sweep(curr_config,  save_to_labber=False)
 
-                if save_to_labber:
-                    logfile.addEntry(result["labber_trace"])
+            # automatic naming:
+            if labber_log_name:
+                log_name = labber_log_name
+            else:
+                class_name = type(self).__name__
+                log_name = f'{class_name}_sweep'
+
+            log_name = lu.get_log_name(log_name) # adds automatic numbering to avoid overwrite
+
+            # create log file
+            logfile = Labber.createLogFile_ForData(log_name, log_list, step_list)
+
+            # add comment w. metadata
+            logfile.setComment(str(config.get_metadata_table()))
+
+        outer_variables = Config(*variable_config.param_list[:-1])  # "outer" means all but the inner-most loop
+
+        # N-dimensional loop with itertools.product:
+        for vals in iter.product(*outer_variables.get_values()):
+            # update parameters to current values:
+            for i, param in enumerate(outer_variables.param_list):
+                curr_config.set_parameter(name=param.name, value=vals[i])
+
+            # do 1D sweep on the tracing parameter:
+            result = self.one_dimensional_sweep(curr_config, save_to_labber=False)
+
+            # save to labber
+            if save_to_labber:
+                logfile.addEntry(result["labber_trace"])
 
 
 class TestExperiment(Experiment):
@@ -248,7 +272,7 @@ class TestExperiment(Experiment):
         for param in config.param_list:
             product = product * param.value
 
-        #vector = np.array([config.x.value, config.y.value, config.z.value, config.w.value])
+        # vector = np.array([config.x.value, config.y.value, config.z.value, config.w.value])
         vector = np.array(config.get_values())
 
         output_config = Config(Parameter('product', product),
