@@ -68,12 +68,19 @@ class Config:  # TODO - I realized this class can be used for output data as wel
 
     def set_parameter(self, **kwargs):
 
-
         if "name" in kwargs.keys():
             getattr(self, kwargs["name"]).value = kwargs["value"]
+            if "is_iterated" in kwargs.keys():
+                getattr(self, kwargs["name"]).is_iterated = kwargs["is_iterated"]
+            else:
+                getattr(self, kwargs["name"]).is_iterated = isinstance(kwargs["value"], Iterable)
 
         if "index" in kwargs.keys():
             self.param_list[kwargs["index"]] = kwargs["value"]
+            if "is_iterated" in kwargs.keys():
+                self.param_list[kwargs["index"]].is_iterated = kwargs["is_iterated"]
+            else:
+                self.param_list[kwargs["index"]].is_iterated = isinstance(kwargs["value"], Iterable)
 
 
 
@@ -203,9 +210,10 @@ class Experiment:
         trace_list = variable_config.get_labber_step_list()
 
         curr_config = deepcopy(config)
+        print(variable_config.param_list)
         for variable in variable_config.param_list:
             curr_config.set_parameter(name=variable.name, value=0)
-        #print(curr_config.param_list)
+        print(curr_config.param_list)
         test_result = self.run(curr_config)
         log_list = test_result.get_labber_log_list()
 
@@ -240,7 +248,8 @@ class TestExperiment(Experiment):
         for param in config.param_list:
             product = product * param.value
 
-        vector = np.array([config.x.value, config.y.value, config.z.value, config.w.value])
+        #vector = np.array([config.x.value, config.y.value, config.z.value, config.w.value])
+        vector = np.array(config.get_values())
 
         output_config = Config(Parameter('product', product),
                                Parameter('vector', vector))
