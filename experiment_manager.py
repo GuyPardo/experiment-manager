@@ -46,7 +46,7 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
             self.is_iterated = is_iterated
 
 
-class Config:  # TODO - I realized this class can be used for output data as well. consider change the name
+class Config:  # TODO - I realized this class can be used for output data as well. consider changing the name
     """
     this is a package for a list of Parameter objects
     with some useful methods.
@@ -186,7 +186,8 @@ class Experiment:
     def sweep(self, config, save_to_labber=True):
         # TODO this wokrs but there is something wrong with variable order
         # I think i fixed it.  now the convention is that the last varialbe is the inner-most loop
-        # and we reverse the labber step list instead.
+        # and we reverse the labber step list in stead.
+        #
 
         constant_config = Config(*config.get_constants())
         variable_config = Config(*config.get_iterables())
@@ -225,13 +226,14 @@ class Experiment:
 
 class TestExperiment(Experiment):
 
-    def run(self, config: Config):
+    def run(self, config:Config):
         # TODO : verify that config is constant (first need to implement an is_const method for Config)
+
         product = 1
         for param in config.param_list:
             product = product * param.value
 
-        vector = np.array(config.get_values())
+        vector = np.array([config.x.value, config.y.value, config.z.value, config.w.value])
 
         output_config = Config(Parameter('product', product),
                                Parameter('vector', vector))
@@ -240,9 +242,9 @@ class TestExperiment(Experiment):
 
 ########################################################################################################################
 config = Config(Parameter('x', 5, 'a.u.'),
-                Parameter('y', 4.5, 'a.u.'),
-                Parameter('z', [1, 2, 3, 4]),
-                Parameter('w', [1, 2, 3], 'm'))
+                Parameter('y', [4.5, 3.4, 3, 5], 'a.u.'),
+                Parameter('z', 1),
+                Parameter('w', [1, 2, 3, 4], 'm'))
 
 print(config.get_metadata_table())
 
