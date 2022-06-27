@@ -67,11 +67,15 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         setattr(self, param.name, param)
 
     def set_parameter(self, **kwargs):
+
+
         if "name" in kwargs.keys():
             getattr(self, kwargs["name"]).value = kwargs["value"]
 
         if "index" in kwargs.keys():
-            self.param_list[kwargs["index"]].value = kwargs["value"]
+            self.param_list[kwargs["index"]] = kwargs["value"]
+
+
 
     def get_dict(self):
         d = {}
@@ -159,19 +163,21 @@ class Experiment:
     def run(self, config: Config):
         raise NotImplemented('run method not implemented')
 
-    def one_dimensional_sweep(self, const_config: Config, variable_param: Parameter, save_to_labber=False):
+    def one_dimensional_sweep(self, config: Config,  save_to_labber=False):
         """
         execute self.run in a loop on a certain variable parameter
-        :param const_config: a Config object without any iterated Parameters TODO: input verification
-        :param variable_param: : an iterated Parameter TODO: input verification
+        :param config: a Config object with exactly one iterated Parameters  (and the others are constants)TODO: input verification
         :return: a dict with two entries: 'output_config' --> a list of Config objects with the data,
                     'labber_trace'--> a dict that can be inputted to labber's addEntry method
         """
+
+        variable_param = config.get_iterables()[0]
         result = []
+        print(variable_param)
         for val in variable_param.value:
             current_param = Parameter(variable_param.name, val, units=variable_param.units)
-            current_config = deepcopy(const_config)
-            current_config.add_parameter(current_param)
+            current_config = deepcopy(config)
+            current_config.set_parameter(name=current_param.name, value=current_param.value)
             result.append(self.run(current_config))
 
         labber_trace = get_labber_trace(result)
@@ -180,7 +186,7 @@ class Experiment:
             logfile = Labber.createLogFile_ForData(log_name, result[0].get_labber_log_list(),
                                                    Config(variable_param).get_labber_step_list())
             logfile.addEntry(get_labber_trace(result))
-            logfile.setComment(str(const_config.get_metadata_table()))
+            logfile.setComment(str(config.get_metadata_table()))
         return dict(output_config=result, labber_trace=labber_trace)
 
     def sweep(self, config, save_to_labber=True):
@@ -196,21 +202,22 @@ class Experiment:
         tracing_parameter = variable_config.param_list[-1]
         trace_list = variable_config.get_labber_step_list()
 
-        curr_config = deepcopy(constant_config)
-        for variable in variable_config.param_list[:-1]:
-            curr_config.add_parameter(Parameter(variable.name, 0, variable.units))
-        print(curr_config.param_list)
+        curr_config = deepcopy(config)
+        for variable in variable_config.param_list:
+            curr_config.set_parameter(name=variable.name, value=0)
+        #print(curr_config.param_list)
         test_result = self.run(curr_config)
-
         log_list = test_result.get_labber_log_list()
 
-        print(log_list)
-        print(trace_list)
+        curr_config.set_parameter(name = tracing_parameter.name, value  = tracing_parameter.value)
+
+        #print(log_list)
+        #print(trace_list)
         if save_to_labber:
             log_name = lu.get_log_name('test_sweep_new')  # TODO automate naming
             logfile = Labber.createLogFile_ForData(log_name, log_list, trace_list)
             logfile.setComment(str(config.get_metadata_table()))
-        #variable_config.param_list.reverse()
+        # variable_config.param_list.reverse()
         outer_variables = Config(*variable_config.param_list[:-1])  # all but the inner most loop
         print(outer_variables.param_list)
         for vals in iter.product(*outer_variables.get_values()):
@@ -218,7 +225,7 @@ class Experiment:
                 print(vals)
                 curr_config.set_parameter(name=param.name, value=vals[i])
                 print(curr_config.param_list)
-                result = self.one_dimensional_sweep(curr_config, tracing_parameter, save_to_labber=False)
+                result = self.one_dimensional_sweep(curr_config,  save_to_labber=False)
 
                 if save_to_labber:
                     logfile.addEntry(result["labber_trace"])
@@ -226,7 +233,7 @@ class Experiment:
 
 class TestExperiment(Experiment):
 
-    def run(self, config:Config):
+    def run(self, config: Config):
         # TODO : verify that config is constant (first need to implement an is_const method for Config)
 
         product = 1
