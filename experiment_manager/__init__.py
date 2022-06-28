@@ -49,8 +49,7 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
 
 class Config:  # TODO - I realized this class can be used for output data as well. consider changing the name
     """
-    this is a package-class for a list of Parameter objects
-    with some useful methods.
+    this is an envelope-class for a list of Parameter objects with some useful methods.
     I am assuming that the user is not going to change attributes of this class once an object is created. TODO: fix this.
     """
 
@@ -168,6 +167,7 @@ class Experiment:
         pass
 
     def run(self, config: Config):
+        # to be implemented in child classes
         raise NotImplemented('run method not implemented')
 
     def one_dimensional_sweep(self, config: Config, save_to_labber=False):
@@ -181,7 +181,6 @@ class Experiment:
 
         variable_param = config.get_iterables()[0]
         result = []
-        print(variable_param)
         for val in variable_param.value:
             current_param = Parameter(variable_param.name, val, units=variable_param.units)
             current_config = deepcopy(config)
@@ -249,7 +248,7 @@ class Experiment:
 
         outer_variables = Config(*variable_config.param_list[:-1])  # "outer" means all but the inner-most loop
 
-        # N-dimensional loop with itertools.product:
+        # N-dimensional loop with itertools.product: # (actually N-1 )
         for vals in iter.product(*outer_variables.get_values()):
             # update parameters to current values:
             for i, param in enumerate(outer_variables.param_list):
@@ -262,11 +261,36 @@ class Experiment:
             if save_to_labber:
                 logfile.addEntry(result["labber_trace"])
 
+class AsyncExperiment(Experiment):
 
-class TestExperiment(Experiment):
+    def __init__(self):
+        self._async_results = []
+        self.results = []
+
+    @classmethod
+    def wait_result(async_result):
+        ...
+
+    def _run(self, args, **kwargs):
+        self._async_results.append(self.run(*args, **kwargs))
+
+    def wait_results(self):
+        for result in self._async_results:
+            self.results.append(self.wait_result(result))
+
+class QiskitExperiment(AsyncExperiment):
+    def get_circ(self):
+        #to be implemented in child class
+        raise  NotImplemented('get_circ method not implmented')
 
     def run(self, config: Config):
-        # TODO : verify that config is constant (first need to implement an is_const method for Config)
+        pass
+
+
+
+class TestExperiment(Experiment):
+    def run(self, config: Config):
+        # TODO : verify that config is constant (first need to implement an is_const() method for Config)
 
         product = 1
         for param in config.param_list:
@@ -284,7 +308,7 @@ class TestExperiment(Experiment):
 config = Config(Parameter('x', 5, 'a.u.'),
                 Parameter('y', [4.5, 3.4, 3, 5], 'a.u.'),
                 Parameter('z', 1),
-                Parameter('w', [1, 2, 3, 4], 'm'))
+                Parameter('w', 3, 'm'))
 
 print(config.get_metadata_table())
 
