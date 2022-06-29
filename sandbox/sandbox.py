@@ -9,6 +9,28 @@ import numpy as np
 sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
 import Labber_util as lu
 
+
+class Z2_experiment_density_matrix
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 loop_dict = {'param 1': np.linspace(0, 10, 10), 'param 2': np.linspace(0, 10, 5), 'param 3': np.linspace(0, 10, 5)}
 
 
@@ -92,3 +114,5 @@ def sweep(names, values):
 
 # res = one_dimensional_sweep('param 2', np.linspace(0, 9, 10), **const_dict)
 sweep(list(loop_dict.keys()), list(loop_dict.values()))
+
+
