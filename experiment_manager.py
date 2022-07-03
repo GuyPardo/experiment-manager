@@ -140,7 +140,7 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         return loglist
 
 
-def get_labber_trace(output_config_list: list[Config]):
+def get_labber_trace(output_config_list):
     labber_dict = {}
 
     for param in output_config_list[0].param_list:
@@ -152,7 +152,6 @@ def get_labber_trace(output_config_list: list[Config]):
     for param in output_config_list[0].param_list:
         if not param.is_iterated:
             labber_dict[param.name] = np.array(labber_dict[param.name])
-
     return labber_dict
 
 
@@ -214,6 +213,7 @@ class Experiment:
         # get labber step list:
         step_list = variable_config.get_labber_step_list()
 
+
         # create a constant configuration for test run
         curr_config = deepcopy(config)
         for variable in variable_config.param_list:
@@ -224,6 +224,12 @@ class Experiment:
 
         # get labber log list
         log_list = test_result.get_labber_log_list()
+
+
+        print("setp list")
+        print(step_list)
+        print("log list")
+        print(log_list)
 
         # add back the tracing parameter as an iterated Parameter
         curr_config.set_parameter(name=tracing_parameter.name, value=tracing_parameter.value)
@@ -257,6 +263,8 @@ class Experiment:
             result = self.one_dimensional_sweep(curr_config, save_to_labber=False)
 
             # save to labber
+            print("trace")
+            print(result["labber_trace"])
             if save_to_labber:
                 logfile.addEntry(result["labber_trace"])
 
@@ -280,9 +288,22 @@ class AsyncExperiment(Experiment):
         for result in self._async_results:
             self.results.append(self.wait_result(result))
 
+
+
+
+class Child(Experiment):
+    def one_d(self):
+        pass
+
+
 class QiskitExperimentDensityMat(AsyncExperiment):
-    # let's agree that we always work with lists of circuits..
-    def get_circ_list(self, config:Config):
+    """
+    qiskit experiment docstring
+    """
+
+
+    # let's agrQiskitExperimentDensityMatee that we always work with lists of circuits..
+    def get_circ(self, config:Config):
         #to be implemented in child class
         raise  NotImplemented('get_circ method not implemented')
 
@@ -290,13 +311,136 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         job = config.backend.value.run(self.get_circ(config))
         return job
 
-    @classmethod
-    def wait_result(async_result):
-        result = async_result.result().data() #density matrix
+
+    def wait_result(self, job):
+        # return a list of density matrix objects
+        result = []
+        for i in range(len(job.result().results)):
+            result.append(job.result().data(i)["density_matrix"])
         return result
 
-    def one_dimensional_sweep(self, config: Config, save_to_labber=False):
+    def one_dimensional_job(self, config: Config):
+        variable_param = config.get_iterables()[0]
+        circs = []
+        for val in variable_param.value:
+            current_param = Parameter(variable_param.name, val, units=variable_param.units)
+            current_config = deepcopy(config)
+            current_config.set_parameter(name=current_param.name, value=current_param.value)
+            print(current_config.param_list)
+            circs.append(self.get_circ(current_config))
+
+        job = config.backend.value.run(circs)
+        self._async_results.append(job)
+        return job
+
+    def sweep(self, config):
+        self.sweep_jobs = []
+        variable_config = Config(*config.get_iterables())  # a Config with only the variables
+
+        # the last variable is the trace parameter (inner-most loop):
+        tracing_parameter = variable_config.param_list[-1]
+
+        curr_config = deepcopy(config)
+        for variable in variable_config.param_list[:-1]:
+            curr_config.set_parameter(name=variable.name, value=0)
+
+        outer_variables = Config(*variable_config.param_list[:-1])  # "outer" means all but the inner-most loop
+        # N-dimensional loop with itertools.product: # (actually N-1 )
+
+
+        for indices, vals in enumerated_product(*outer_variables.get_values()):
+            # update parameters to current values:
+            for i, param in enumerate(outer_variables.param_list):
+                curr_config.set_parameter(name=param.name, value=vals[i])
+
+            print("running...")
+            # do 1D sweep on the tracing parameter:
+            job = self.one_dimensional_job(curr_config)
+            self.sweep_jobs.append(job)
+
+
+    def get_observables(self,density_matrix):
+        # to be iplmeneted in child class
+        # should return an output Config object
+        pass
+    def get_observables_1D(self, job):
+        #returns a dict with output config list, and labber trace
+        density_matrices = self.wait_result(job)
+        output_config = []
+        for density_mat in density_matrices:
+            output_config.append(self.get_observables(density_mat))
+        labber_trace = get_labber_trace(output_config)
+
+        return dict(output_config=output_config, labber_trace=labber_trace)
+
+
+
+    def labber_read(self,config, labber_log_name=None):
+        pass
+        # create labber log file for nd loop acording to config
+        # add entries from self.sweep_jobs using self.get_observables and self.wait_reaults
+        variable_config = Config(*config.get_iterables())  # a Config with only the variables
+
+        # the last variable is the trace parameter (inner-most loop):
+        tracing_parameter = variable_config.param_list[-1]
+
+        # get labber step list:
+        step_list = variable_config.get_labber_step_list()
+
+        # get observables from one iteration of first job: #TODO: check that a job exists
+        single_run_rho = self.wait_result(self.sweep_jobs[0])[0]
+        single_run_observables = self.get_observables(single_run_rho)
+
+        #get labber log list
+        log_list = single_run_observables.get_labber_log_list()
+
+        # build labber logfile
+        # automatic naming:
+        if labber_log_name:
+            log_name = labber_log_name
+        else:
+            class_name = type(self).__name__
+            log_name = f'{class_name}_sweep'
+
+        log_name = lu.get_log_name(log_name)  # adds automatic numbering to avoid overwrite
+        # create log file
+        logfile = Labber.createLogFile_ForData(log_name, log_list, step_list)
+        # add comment w. metadata
+        logfile.setComment(str(config.get_metadata_table()))
+
+        print("labber log")
+        print(log_list)
+        print("labber step")
+        print(step_list)
+
+        for job in self.sweep_jobs:
+            result = self.get_observables_1D(job)
+            labber_trace = result["labber_trace"]
+
+            print("labber trace")
+            print(labber_trace)
+            logfile.addEntry(labber_trace)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 ####################################################################
 
+exp = QiskitExperimentDensityMat()
+
+Child()
