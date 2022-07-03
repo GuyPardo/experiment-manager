@@ -1,3 +1,11 @@
+import importlib
+import experiment_manager
+importlib.reload(experiment_manager)
+
+
+
+from experiment_manager import *
+
 
 class TestExperiment(Experiment):
     def run(self, config: Config):
@@ -10,14 +18,17 @@ class TestExperiment(Experiment):
         # vector = np.array([config.x.value, config.y.value, config.z.value, config.w.value])
         vector = np.array(config.get_values())
 
-        output_config = Config(Parameter('product', product),
-                               Parameter('vector', vector))
+        # output_config = Config(Parameter('product', product),
+        #                        Parameter('vector', vector))
+        output_config = Config(Parameter('vector', vector))
+
+        # output_config = Config(Parameter('product', product))
         return output_config
 
 
 ########################################################################################################################
-config = Config(Parameter('x', 5, 'a.u.'),
-                Parameter('y', [4.5, 3.4, 3, 5], 'a.u.'),
+config = Config(Parameter('x', np.array([4.5, 3.4, 3, 5,6]), 'a.u.'),
+                Parameter('y', 5, 'a.u.'),
                 Parameter('z', 1),
                 Parameter('w', 3, 'm'))
 
