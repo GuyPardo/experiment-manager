@@ -3,12 +3,9 @@
   <component name="ChangeListManager">
     <list default="true" id="f57b4af3-7ba3-4af9-8725-2ebd06ade2e6" name="Changes" comment="">
       <change beforePath="$PROJECT_DIR$/.idea/desktop.ini" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/desktop.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/experiment-manager.iml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/experiment-manager.iml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/inspectionProfiles/desktop.ini" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/inspectionProfiles/desktop.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/.idea/misc.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/misc.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/desktop.ini" beforeDir="false" afterPath="$PROJECT_DIR$/desktop.ini" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/example.py" beforeDir="false" afterPath="$PROJECT_DIR$/example.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/experiment_manager.py" beforeDir="false" afterPath="$PROJECT_DIR$/experiment_manager.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/qiskit_test.py" beforeDir="false" afterPath="$PROJECT_DIR$/qiskit_test.py" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/sandbox/desktop.ini" beforeDir="false" afterPath="$PROJECT_DIR$/sandbox/desktop.ini" afterDir="false" />

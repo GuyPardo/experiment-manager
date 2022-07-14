@@ -31,7 +31,7 @@ class T1Experiment(QiskitExperimentDensityMat):
 
         return trans_circ
 
-    def get_observables(self, density_matrix):
+    def get_observables(self, config:Config, density_matrix):
         populations = density_matrix.probabilities() # an array
         output_config = Config(Parameter('populations', populations), Parameter('param', 1.0))
         return output_config

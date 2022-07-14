@@ -52,7 +52,7 @@ class Config:  # TODO - I realized this class can be used for output data as wel
     this is an envelope-class for a list of Parameter objects with some useful methods.
     """
 
-    # TODO easier access to values?
+    # TODO easier access to values? right now one has to do config.param_name.value
     def __init__(self, *param_list):
         """
         creates a Config object from a list of Parameter objects
@@ -88,6 +88,12 @@ class Config:  # TODO - I realized this class can be used for output data as wel
             d[param.name] = param
         return d
 
+    #TODO
+    def get_dataclass_object_with_values(self):
+        pass
+
+
+
     def get_values(self):
         values = []
         for param in self.param_list:
@@ -112,13 +118,14 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         table = BeautifulTable()
         table.columns.header = ["name", "value", "units"]
         for param in self.param_list:
-            print(param)
+            #print(param)
             if param.is_iterated:
                 val = "iterated"
             else:
                 val = param.value
             table.rows.append([param.name, val, param.units])
             table.set_style(BeautifulTable.STYLE_NONE)
+            table.precision=20
         return table
 
     def is_constant(self):
@@ -291,14 +298,11 @@ class AsyncExperiment(Experiment):
 
 
 
-class Child(Experiment):
-    def one_d(self):
-        pass
 
 
 class QiskitExperimentDensityMat(AsyncExperiment):
     """
-    qiskit experiment docstring
+    a qiskit experiment docstring
     """
 
 
@@ -326,7 +330,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             current_param = Parameter(variable_param.name, val, units=variable_param.units)
             current_config = deepcopy(config)
             current_config.set_parameter(name=current_param.name, value=current_param.value)
-            print(current_config.param_list)
+            # print(current_config.param_list)
             circs.append(self.get_circ(current_config))
 
         job = config.backend.value.run(circs)
@@ -335,6 +339,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
     def sweep(self, config):
         self.sweep_jobs = []
+        self.sweep_configs = []
         variable_config = Config(*config.get_iterables())  # a Config with only the variables
 
         # the last variable is the trace parameter (inner-most loop):
@@ -357,27 +362,36 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             # do 1D sweep on the tracing parameter:
             job = self.one_dimensional_job(curr_config)
             self.sweep_jobs.append(job)
+            self.sweep_configs.append(curr_config)
 
-
-    def get_observables(self,density_matrix):
-        # to be iplmeneted in child class
+    def get_observables(self,config:Config, density_matrix):
+        # to be implemented in child class
         # should return an output Config object
         pass
-    def get_observables_1D(self, job):
+
+    def get_observables_1D(self,config, job):
         #returns a dict with output config list, and labber trace
+
+        # input verification
+        if not len(config.get_iterables()) == 1:
+            raise ValueError("config must have exactly one iterable Parameter")
+
+        variable_param = config.get_iterables()[0]
+
         density_matrices = self.wait_result(job)
         output_config = []
-        for density_mat in density_matrices:
-            output_config.append(self.get_observables(density_mat))
+        config_scalar = deepcopy(config)
+        for index, density_mat in enumerate(density_matrices):
+            config_scalar.set_parameter(name=variable_param.name, value=variable_param.value[index])
+            output_config.append(self.get_observables(config_scalar, density_mat))
+
         labber_trace = get_labber_trace(output_config)
 
         return dict(output_config=output_config, labber_trace=labber_trace)
 
 
-
     def labber_read(self,config, labber_log_name=None):
-        pass
-        # create labber log file for nd loop acording to config
+        # create labber log file for nd loop according to config
         # add entries from self.sweep_jobs using self.get_observables and self.wait_reaults
         variable_config = Config(*config.get_iterables())  # a Config with only the variables
 
@@ -389,7 +403,11 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
         # get observables from one iteration of first job: #TODO: check that a job exists
         single_run_rho = self.wait_result(self.sweep_jobs[0])[0]
-        single_run_observables = self.get_observables(single_run_rho)
+        single_run_config = deepcopy(config)
+        for var in variable_config.param_list:
+            single_run_config.set_parameter(name=var.name, value=var.value[0])
+
+        single_run_observables = self.get_observables(single_run_config, single_run_rho)
 
         #get labber log list
         log_list = single_run_observables.get_labber_log_list()
@@ -408,17 +426,18 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         # add comment w. metadata
         logfile.setComment(str(config.get_metadata_table()))
 
-        print("labber log")
-        print(log_list)
-        print("labber step")
-        print(step_list)
+        # print("labber log")
+        # print(log_list)
+        # print("labber step")
+        # print(step_list)
 
-        for job in self.sweep_jobs:
-            result = self.get_observables_1D(job)
+        for index, job in enumerate(self.sweep_jobs):
+
+            result = self.get_observables_1D(self.sweep_configs[index], job)
             labber_trace = result["labber_trace"]
-
-            print("labber trace")
-            print(labber_trace)
+            #
+            # print("labber trace")
+            # print(labber_trace)
             logfile.addEntry(labber_trace)
 
 
@@ -441,6 +460,3 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
 ####################################################################
 
-exp = QiskitExperimentDensityMat()
-
-Child()
