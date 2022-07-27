@@ -21,10 +21,10 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
     """
     name: str
     value: typing.Any
-    units: str = 'n.u.'
+    units: str = None
     is_iterated = None
 
-    def __init__(self, name: str, value, units='n.u.', is_iterated=None):
+    def __init__(self, name: str, value, units=None, is_iterated=None):
         """
         creates a Parameter object
         :param name: str -  name of the parameter
@@ -135,7 +135,11 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         iterated_config = Config(*self.get_iterables())  # build a new config with just the iterables of self
         steplist = []
         for param in iterated_config.param_list:
-            steplist.append(dict(name=param.name, unit=param.units, values=param.value))
+            if param.units:
+                steplist.append(dict(name=param.name, unit=param.units, values=param.value))
+            else:
+                steplist.append(dict(name=param.name, values=param.value))
+
         steplist.reverse()
         return steplist
 
@@ -143,11 +147,16 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         # thinking about the Config object as an output data
         loglist = []
         for param in self.param_list:
-            loglist.append(dict(name=param.name, unit=param.units, vector=param.is_iterated))
+            if param.units:
+                loglist.append(dict(name=param.name, unit=param.units, vector=param.is_iterated))
+            else:
+                loglist.append(dict(name=param.name, vector=param.is_iterated))
+
         return loglist
 
 
 def get_labber_trace(output_config_list):
+    #TODO - maybe this should be  a method on Config?
     labber_dict = {}
 
     for param in output_config_list[0].param_list:
