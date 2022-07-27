@@ -360,9 +360,10 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
             print("running...")
             # do 1D sweep on the tracing parameter:
+            print(curr_config.param_list) #TODO only print sweep parameters
             job = self.one_dimensional_job(curr_config)
             self.sweep_jobs.append(job)
-            self.sweep_configs.append(curr_config)
+            self.sweep_configs.append(deepcopy(curr_config))
 
     def get_observables(self,config:Config, density_matrix):
         # to be implemented in child class
@@ -432,7 +433,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         # print(step_list)
 
         for index, job in enumerate(self.sweep_jobs):
-
+            print(self.sweep_configs[index].param_list) #TODO only pring sweep parameters
             result = self.get_observables_1D(self.sweep_configs[index], job)
             labber_trace = result["labber_trace"]
             #
