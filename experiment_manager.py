@@ -156,7 +156,6 @@ class Config:  # TODO - I realized this class can be used for output data as wel
 
 
 def get_labber_trace(output_config_list):
-    #TODO - maybe this should be  a method on Config?
     labber_dict = {}
 
     for param in output_config_list[0].param_list:
