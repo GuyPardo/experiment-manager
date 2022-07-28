@@ -92,8 +92,6 @@ class Config:  # TODO - I realized this class can be used for output data as wel
     def get_dataclass_object_with_values(self):
         pass
 
-
-
     def get_values(self):
         values = []
         for param in self.param_list:
@@ -118,7 +116,6 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         table = BeautifulTable()
         table.columns.header = ["name", "value", "units"]
         for param in self.param_list:
-            #print(param)
             if param.is_iterated:
                 val = "iterated"
             else:
@@ -285,6 +282,7 @@ class Experiment:
 
             # save in python: #TODO
 
+
 class AsyncExperiment(Experiment):
 
     def __init__(self):
@@ -295,7 +293,6 @@ class AsyncExperiment(Experiment):
     def wait_result(async_result):
         pass
 
-
     def _run(self, args, **kwargs):
         self._async_results.append(self.run(*args, **kwargs))
 
@@ -304,17 +301,12 @@ class AsyncExperiment(Experiment):
             self.results.append(self.wait_result(result))
 
 
-
-
-
-
 class QiskitExperimentDensityMat(AsyncExperiment):
     """
-    a qiskit experiment docstring
+    an experiment done on qiskit simulator where each run is the execution of a single circuit, saving the resulting
+    density matrix, and then calcualting some observable(s) from it.
     """
 
-
-    # let's agrQiskitExperimentDensityMatee that we always work with lists of circuits..
     def get_circ(self, config:Config):
         #to be implemented in child class
         raise  NotImplemented('get_circ method not implemented')
@@ -322,7 +314,6 @@ class QiskitExperimentDensityMat(AsyncExperiment):
     def run(self, config: Config):
         job = config.backend.value.run(self.get_circ(config))
         return job
-
 
     def wait_result(self, job):
         # return a list of density matrix objects
