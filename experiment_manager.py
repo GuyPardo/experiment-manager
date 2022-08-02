@@ -355,18 +355,26 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         outer_variables = Config(*variable_config.param_list[:-1])  # "outer" means all but the inner-most loop
         # N-dimensional loop with itertools.product: # (actually N-1 )
 
+        counter = 1
+        num_jobs = 1
+        for var in outer_variables.param_list:
+            num_jobs=num_jobs*len(var.value)
 
         for indices, vals in enumerated_product(*outer_variables.get_values()):
             # update parameters to current values:
             for i, param in enumerate(outer_variables.param_list):
                 curr_config.set_parameter(name=param.name, value=vals[i])
 
-            print("running...")
+            print(f"running job {counter} out of {num_jobs}...")
             # do 1D sweep on the tracing parameter:
-            print(curr_config.param_list) #TODO only print sweep parameters
+            print('current configuration:')
+            for par in outer_variables.param_list:
+                print(getattr(curr_config,par.name))
+
             job = self.one_dimensional_job(curr_config)
             self.sweep_jobs.append(job)
             self.sweep_configs.append(deepcopy(curr_config))
+            counter = counter + 1
 
     def get_observables(self,config:Config, density_matrix):
         # to be implemented in child class
@@ -436,7 +444,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         # print(step_list)
 
         for index, job in enumerate(self.sweep_jobs):
-            print(self.sweep_configs[index].param_list) #TODO only pring sweep parameters
+            print(f'reading result from job {index+1} out of {len(self.sweep_jobs)}')
             result = self.get_observables_1D(self.sweep_configs[index], job)
             labber_trace = result["labber_trace"]
             #
