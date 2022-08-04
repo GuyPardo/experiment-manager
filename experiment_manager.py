@@ -8,9 +8,12 @@ from beautifultable import BeautifulTable
 from dataclasses import dataclass
 import Labber
 import itertools as iter
+
+from tictoc import tic, toc
+
 from general_utils import enumerated_product
 
-sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
+#sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
 import Labber_util as lu
 
 
@@ -327,7 +330,11 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         return result
 
     def one_dimensional_job(self, config: Config):
+        # input verification
+        if not len(config.get_iterables()) == 1:
+            raise ValueError("config must have exactly one iterable Parameter")
         variable_param = config.get_iterables()[0]
+        tic()
         circs = []
         for val in variable_param.value:
             current_param = Parameter(variable_param.name, val, units=variable_param.units)
@@ -338,6 +345,9 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
         job = config.backend.value.run(circs)
         self._async_results.append(job)
+        print('1D job sent in:')
+        toc()
+        print('')
         return job
 
     def sweep(self, config):
@@ -444,8 +454,12 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         # print(step_list)
 
         for index, job in enumerate(self.sweep_jobs):
-            print(f'reading result from job {index+1} out of {len(self.sweep_jobs)}')
+            print(f'reading result from job {index+1} out of {len(self.sweep_jobs)}...')
+            tic()
             result = self.get_observables_1D(self.sweep_configs[index], job)
+            print('1D observables read in:')
+            toc()
+            print('')
             labber_trace = result["labber_trace"]
             #
             # print("labber trace")
