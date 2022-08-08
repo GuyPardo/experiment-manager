@@ -32,7 +32,7 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
         creates a Parameter object
         :param name: str -  name of the parameter
         :param value: any type -  value of the parameter
-        :param units: str  - physical units of the parameter, by default 'n.u.' = no units, which is not exactly the same thing as a.u. (arbitrary units).
+        :param units: str  - physical units of the parameter,TODO update doc by default 'n.u.' = no units, which is not exactly the same thing as a.u. (arbitrary units).
         :param is_iterated: bool. detemines whether the value is constant or iterated. if iterated, then value should be an Iterable.
                                     by default self.is_iterated is defined according to whether value is an Iterable, but thie can be changed if you want, for example, a constant value that is a list.
         """
@@ -70,7 +70,7 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         setattr(self, param.name, param)
 
     def set_parameter(self, **kwargs):
-
+        #TODO this is very ugly
         if "name" in kwargs.keys():
             getattr(self, kwargs["name"]).value = kwargs["value"]
             if "is_iterated" in kwargs.keys():
@@ -129,7 +129,7 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         return table
 
     def is_constant(self):
-        pass  # TODO - implement
+        return not bool(len(self.get_iterables()))
 
     def get_labber_step_list(self):
         iterated_config = Config(*self.get_iterables())  # build a new config with just the iterables of self
@@ -319,6 +319,8 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         raise  NotImplemented('get_circ method not implemented')
 
     def run(self, config: Config):
+        if config.skip_simulation.value:
+            return
         job = config.backend.value.run(self.get_circ(config))
         return job
 
