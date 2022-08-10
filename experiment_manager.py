@@ -85,10 +85,16 @@ class Config:  # TODO - I realized this class can be used for output data as wel
             else:
                 self.param_list[kwargs["index"]].is_iterated = isinstance(kwargs["value"], Iterable)
 
-    def get_dict(self):
+    def get_parameters_dict(self):
         d = {}
         for param in self.param_list:
             d[param.name] = param
+        return d
+
+    def get_values_dict(self):
+        d = {}
+        for param in self.param_list:
+            d[param.name] = param.value
         return d
 
     #TODO
