@@ -19,7 +19,7 @@ def get_current_Labber_path():
     # create a temporary log:
     lLog = [dict(name='name', vector=False)]
     templog = lb.createLogFile_ForData('temp', lLog)
-    % get its path
+    # get its path
     templog_path = templog.getFilePath(None)
 
     #return just the folder

@@ -1,5 +1,4 @@
-import os
-import sys
+
 import typing
 from typing import Iterable
 from copy import deepcopy
@@ -7,13 +6,8 @@ import numpy as np
 from beautifultable import BeautifulTable
 from dataclasses import dataclass
 import Labber
-import itertools as iter
-
 from tictoc import tic, toc
-
 from general_utils import enumerated_product
-
-#sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
 import labber_util as lu
 
 
@@ -70,7 +64,7 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         setattr(self, param.name, param)
 
     def set_parameter(self, **kwargs):
-        #TODO this is very ugly
+        # TODO this is very ugly
         if "name" in kwargs.keys():
             getattr(self, kwargs["name"]).value = kwargs["value"]
             if "is_iterated" in kwargs.keys():
@@ -97,7 +91,13 @@ class Config:  # TODO - I realized this class can be used for output data as wel
             d[param.name] = param.value
         return d
 
-    #TODO
+    def get_names_list(self):
+        name_list = []
+        for param in self.param_list:
+            name_list.append(param.name)
+        return name_list
+
+    # TODO
     def get_dataclass_object_with_values(self):
         pass
 
@@ -121,6 +121,8 @@ class Config:  # TODO - I realized this class can be used for output data as wel
                 const_list.append(param)
         return const_list
 
+
+
     def get_metadata_table(self):
         table = BeautifulTable()
         table.columns.header = ["name", "value", "units"]
@@ -131,7 +133,7 @@ class Config:  # TODO - I realized this class can be used for output data as wel
                 val = param.value
             table.rows.append([param.name, val, param.units])
             table.set_style(BeautifulTable.STYLE_NONE)
-            table.precision=20
+            table.precision = 20
         return table
 
     def is_constant(self):
@@ -160,6 +162,15 @@ class Config:  # TODO - I realized this class can be used for output data as wel
 
         return loglist
 
+    #TODO
+    def get_loop_dimension(self):
+        pass
+
+    def get_total_iteration_count(self):
+        iter_count = 1
+        for var in self.get_iterables():
+            iter_count = iter_count*len(var.value)
+        return iter_count
 
 def get_labber_trace(output_config_list):
     labber_dict = {}
@@ -234,7 +245,6 @@ class Experiment:
         # get labber step list:
         step_list = variable_config.get_labber_step_list()
 
-
         # create a constant configuration for test run
         curr_config = deepcopy(config)
         for variable in variable_config.param_list:
@@ -245,7 +255,6 @@ class Experiment:
 
         # get labber log list
         log_list = test_result.get_labber_log_list()
-
 
         print("setp list")
         print(step_list)
@@ -264,7 +273,7 @@ class Experiment:
                 class_name = type(self).__name__
                 log_name = f'{class_name}_sweep'
 
-            log_name = lu.get_log_name(log_name) # adds automatic numbering to avoid overwrite
+            log_name = lu.get_log_name(log_name)  # adds automatic numbering to avoid overwrite
 
             # create log file
             logfile = Labber.createLogFile_ForData(log_name, log_list, step_list)
@@ -292,10 +301,6 @@ class Experiment:
             # save in python: #TODO
 
 
-
-
-
-
 class AsyncExperiment(Experiment):
 
     def __init__(self):
@@ -320,9 +325,9 @@ class QiskitExperimentDensityMat(AsyncExperiment):
     density matrix, and then calcualting some observable(s) from it.
     """
 
-    def get_circ(self, config:Config):
-        #to be implemented in child class
-        raise  NotImplemented('get_circ method not implemented')
+    def get_circ(self, config: Config):
+        # to be implemented in child class
+        raise NotImplemented('get_circ method not implemented')
 
     def run(self, config: Config):
         if config.skip_simulation.value:
@@ -338,10 +343,15 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         return result
 
     def one_dimensional_job(self, config: Config):
-        # input verification
-        if not len(config.get_iterables()) == 1:
+        """
+
+        :param config:
+        :return:
+        """
+        # verify input:
+        if len(config.get_iterables()) != 1:
             raise ValueError("config must have exactly one iterable Parameter")
-        variable_param = config.get_iterables()[0]
+        variable_param = config.get_iterables()[0] # config.get_iterables() is a list of length 1
         tic()
         circs = []
         for val in variable_param.value:
@@ -374,11 +384,10 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         # N-dimensional loop with itertools.product: # (actually N-1 )
 
         counter = 1
-        num_jobs = 1
-        for var in outer_variables.param_list:
-            num_jobs=num_jobs*len(var.value)
 
-        for indices, vals in enumerated_product(*outer_variables.get_values()):
+        num_jobs = outer_variables.get_total_iteration_count()
+
+        for indices, vals in enumerated_product(*outer_variables.get_values()): #TODO this should be a function or a method of Config
             # update parameters to current values:
             for i, param in enumerate(outer_variables.param_list):
                 curr_config.set_parameter(name=param.name, value=vals[i])
@@ -386,21 +395,21 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             print(f"running job {counter} out of {num_jobs}...")
             # do 1D sweep on the tracing parameter:
             print('current configuration:')
-            for par in outer_variables.param_list:
-                print(getattr(curr_config,par.name))
+            for param in outer_variables.param_list:
+                print(getattr(curr_config, param.name))
 
             job = self.one_dimensional_job(curr_config)
             self.sweep_jobs.append(job)
             self.sweep_configs.append(deepcopy(curr_config))
             counter = counter + 1
 
-    def get_observables(self,config:Config, density_matrix):
-        # to be implemented in child class
+    def get_observables(self, config: Config, density_matrix):
+        raise NotImplementedError()
         # should return an output Config object
         pass
 
-    def get_observables_1D(self,config, job):
-        #returns a dict with output config list, and labber trace
+    def get_observables_1D(self, config, job):
+        # returns a dict with output config list, and labber trace
 
         # input verification
         if not len(config.get_iterables()) == 1:
@@ -419,8 +428,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
         return dict(output_config=output_config, labber_trace=labber_trace)
 
-
-    def labber_read(self,config, labber_log_name=None):
+    def labber_read(self, config, labber_log_name=None):
         # create labber log file for nd loop according to config
         # add entries from self.sweep_jobs using self.get_observables and self.wait_reaults
         variable_config = Config(*config.get_iterables())  # a Config with only the variables
@@ -439,7 +447,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
         single_run_observables = self.get_observables(single_run_config, single_run_rho)
 
-        #get labber log list
+        # get labber log list
         log_list = single_run_observables.get_labber_log_list()
 
         # build labber logfile
@@ -456,41 +464,13 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         # add comment w. metadata
         logfile.setComment(str(config.get_metadata_table()))
 
-        # print("labber log")
-        # print(log_list)
-        # print("labber step")
-        # print(step_list)
-
         for index, job in enumerate(self.sweep_jobs):
-            print(f'reading result from job {index+1} out of {len(self.sweep_jobs)}...')
+            print(f'reading result from job {index + 1} out of {len(self.sweep_jobs)}...')
             tic()
             result = self.get_observables_1D(self.sweep_configs[index], job)
             print('1D observables read in:')
             toc()
             print('')
-            labber_trace = result["labber_trace"]
-            #
-            # print("labber trace")
-            # print(labber_trace)
-            logfile.addEntry(labber_trace)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+            logfile.addEntry(result["labber_trace"])
 
 ####################################################################
-
