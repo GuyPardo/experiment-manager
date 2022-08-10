@@ -38,13 +38,13 @@ def get_logfile_full_path(log_name):
     log_name = f'{log_name}.hdf5'
     return os.path.join(get_current_Labber_path(), log_name)
 
-def log_exists(log_name):
+def log_exists(log_full_path):
     """
-    checks whether a Labber logfile with name log_name exists in the current Labber database directory.
+    checks whether a Labber logfile with name full path log_path_name exists in the current Labber database directory.
     :param log_name:str
     :return: bool
     """
-    return (os.path.exists(get_logfile_full_path(log_name)))
+    return os.path.exists(log_full_path)
 
 
 def get_log_name(log_name):
@@ -61,10 +61,12 @@ def get_log_name(log_name):
     :param log_name:str desired name for labber logfile
     :return:str the same name with additional numbers at the end as necessary to avoid overwrite.
     """
+    labber_path = get_current_Labber_path()
     LOG_NAME_FORMAT = '{log_name}__{integer_suffix}'
     counter = 1
     log_name_temp = log_name
-    while log_exists(log_name_temp):
+
+    while log_exists(os.path.join(labber_path, f'{log_name_temp}.hdf5')):
         log_name_temp = LOG_NAME_FORMAT.format(log_name=log_name, integer_suffix=counter)
         counter = counter + 1
     return log_name_temp
