@@ -14,7 +14,7 @@ from tictoc import tic, toc
 from general_utils import enumerated_product
 
 #sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
-import Labber_util as lu
+import labber_util as lu
 
 
 @dataclass

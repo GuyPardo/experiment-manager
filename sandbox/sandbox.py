@@ -7,7 +7,7 @@ from general_utils import enumerated_product
 import numpy as np
 
 sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
-import Labber_util as lu
+import labber_util as lu
 
 
 class Z2_experiment_density_matrix
