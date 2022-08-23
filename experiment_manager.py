@@ -207,7 +207,7 @@ class Config:  # TODO - I realized this class can be used for output data as wel
 
     def get_metadata_table(self):
         """
-        get a nice table with all the Parameters in self, thier values and thier units.
+        get a nice table with all the Parameters in self, their values and their units.
         :return: a BeautifulTable object
         """
         table = BeautifulTable()
@@ -640,7 +640,11 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         logfile = Labber.createLogFile_ForData(log_name, log_list, step_list)
         # add comment w. metadata
         logfile.setComment(str(config.get_metadata_table()))
+        labber_tags = [type(self).__name__]
+        for param in variable_config.param_list:
+            labber_tags.append(f'loop on {[param.name]}')
 
+        logfile.setTags()
         for index, job in enumerate(self.sweep_jobs):
             print(f'reading result from job {index + 1} out of {len(self.sweep_jobs)}...')
             tic()
