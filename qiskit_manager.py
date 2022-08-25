@@ -6,6 +6,31 @@ importlib.reload(experiment_manager)
 from experiment_manager import *
 
 
+def read_qiskit_result(result, label="density_matrix"):
+    """
+    read a qiskit result object with either density matrices or counts or both
+
+    :param result:
+
+    :param label:
+
+     :return:
+    a dict with keys "density_matrices" and "counts" and values that are lists of density_matrices objects and of
+    count dicts respectively
+    """
+    density_mats = []
+    for i in range(len(result.results)):
+        try:
+            density_mats.append(result.data(i)[label])
+        except:
+            density_mats.append(None)
+
+    try:
+        counts = result.get_counts()
+    except:
+        counts = None
+
+    return dict(density_matrices=density_mats, counts=counts)
 
 class QiskitExperimentDensityMat(AsyncExperiment):
     """
@@ -44,17 +69,9 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
     def wait_result(self, job):
         """
-
-        :param job: a qiskit simulation job that came from a list of circuits and returns a list of density matrices
-        s.t. job.result().data(i)[ "density_matrix"] is a qiskit DensityMatrix object (i is an integer)
-
-        :return: a list of qiskit DensityMatrix objects
+            envelope for qiskit job.result()
         """
-        #TODO support the case that job is only a single circuit
-        result = []
-        for i in range(len(job.result().results)):
-            result.append(job.result().data(i)["density_matrix"])
-        return result
+        return job.result()
 
     def one_dimensional_job(self, config: Config):
         """
@@ -142,7 +159,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             self.sweep_configs.append(deepcopy(curr_config))
             counter = counter + 1
 
-    def get_observables(self, config: Config, density_matrix):
+    def get_observables(self, config: Config, density_matrix, counts):
         raise NotImplementedError()
         # should return an output Config object
         pass
@@ -166,12 +183,17 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
         variable_param = config.get_iterables()[0]
 
-        density_matrices = self.wait_result(job)
+        result = self.wait_result(job)
+
+        results_dict = read_qiskit_result(result)
+
         output_config = []
         config_scalar = deepcopy(config)
-        for index, density_mat in enumerate(density_matrices):
+        for index in range(len(result.results)):
+            density_matrix = results_dict["density_matrices"][index]
+            counts = results_dict["counts"][index]
             config_scalar.set_parameter(name=variable_param.name, value=variable_param.value[index])
-            output_config.append(self.get_observables(config_scalar, density_mat))
+            output_config.append(self.get_observables(config_scalar, density_matrix, counts))
 
         labber_trace = get_labber_trace(output_config)
 
@@ -194,12 +216,13 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         step_list = variable_config.get_labber_step_list()
 
         # get observables from one iteration of first job: #TODO: check that a job exists
-        single_run_rho = self.wait_result(self.sweep_jobs[0])[0]
+        single_run_rho = read_qiskit_result(self.wait_result(self.sweep_jobs[0]))["density_matrices"][0]
+        single_run_counts = read_qiskit_result(self.wait_result(self.sweep_jobs[0]))["counts"][0]
         single_run_config = deepcopy(config)
         for var in variable_config.param_list:
             single_run_config.set_parameter(name=var.name, value=var.value[0])
 
-        single_run_observables = self.get_observables(single_run_config, single_run_rho)
+        single_run_observables = self.get_observables(single_run_config, single_run_rho, single_run_counts)
 
         # get labber log list
         log_list = single_run_observables.get_labber_log_list()
