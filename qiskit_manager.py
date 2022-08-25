@@ -4,7 +4,7 @@ import experiment_manager
 importlib.reload(qu)
 importlib.reload(experiment_manager)
 from experiment_manager import *
-
+import pickle
 
 def read_qiskit_result(result, label="density_matrix"):
     """
@@ -19,16 +19,17 @@ def read_qiskit_result(result, label="density_matrix"):
     count dicts respectively
     """
     density_mats = []
+    counts=[]
     for i in range(len(result.results)):
         try:
             density_mats.append(result.data(i)[label])
         except:
             density_mats.append(None)
 
-    try:
-        counts = result.get_counts()
-    except:
-        counts = None
+        try:
+            counts.append(result.get_counts()[i])
+        except:
+            counts.append(None)
 
     return dict(density_matrices=density_mats, counts=counts)
 
@@ -72,6 +73,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         """
             envelope for qiskit job.result() + calibration
         """
+
         result = job.result()
         if not disable_print:
             print("got result")
@@ -258,7 +260,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         labber_tags = [type(self).__name__]
         for param in variable_config.param_list:
             labber_tags.append(f'loop on {[param.name]}')
-
+        labber_tags.append(str(config.backend.value))
         logfile.setTags(labber_tags)
         for index, job in enumerate(self.sweep_jobs):
             print(f'reading result from job {index + 1} out of {len(self.sweep_jobs)}...')
