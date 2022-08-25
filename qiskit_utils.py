@@ -7,6 +7,7 @@ Created on Mon May  2 15:53:33 2022
 from dataclasses import dataclass
 
 import numpy as np
+import qiskit
 from qiskit import QuantumCircuit, transpile
 from qiskit.quantum_info import Kraus, SuperOp
 from qiskit.providers.aer import AerSimulator
@@ -157,7 +158,7 @@ import pickle
 def run_calib(backend, n_qubits, shots=20000):
     meas_calib_circs, state_labels = complete_meas_cal(qr=qiskit.QuantumRegister(n_qubits))
     transpiled_meas_calib = qiskit.transpile(meas_calib_circs, backend)
-    print("sending measurement calibration job...")
+    print(f"sending measurement calibration job for {n_qubits} qubits with {shots} shots")
     job = backend.run(transpiled_meas_calib, shots=shots)
     return job, state_labels
 
@@ -171,3 +172,8 @@ def get_calib_meas_fitter(calib_job, state_labels):
         pickle.dump(meas_fitter, file)
     return meas_fitter
 
+def max_qubit_number(circs:list):
+    qubit_numbers = []
+    for circ in circs:
+        qubit_numbers.append(circ.num_qubits)
+    return max(qubit_numbers)

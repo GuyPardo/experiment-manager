@@ -41,6 +41,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
     def __init__(self):
         super().__init__()
+        self.calibrations = []
         self.sweep_configs = None
         self.sweep_jobs = None
 
@@ -106,10 +107,13 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             # print(current_config.param_list)
             circs.append(self.get_circ(current_config))
 
-        # # readout calibration:
-        # if config.calib_shots.value>0:
-        #     n_qubits = max_qubit_number(circs)
-        #     calib_job, state_labels = run_calib(config.backend.value, n_qubits,)
+        # readout calibration:
+        if config.calib_shots.value>0:
+            n_qubits = qu.max_qubit_number(circs)
+
+            calib_job, state_labels = qu.run_calib(config.backend.value, n_qubits,shots=config.calib_shots.value)
+            calib_dict = dict(calib_job=calib_job, state_labels=state_labels)
+            self.calibrations.append(calib_dict)
 
         job = config.backend.value.run(circs,shots=shots)
         self._async_results.append(job)
