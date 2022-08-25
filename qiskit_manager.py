@@ -68,11 +68,17 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         job = config.backend.value.run(self.get_circ(config),shots=shots)
         return job
 
-    def wait_result(self, job):
+    def wait_result(self, job, meas_fitter=None, disable_print=False):
         """
-            envelope for qiskit job.result()
+            envelope for qiskit job.result() + calibration
         """
-        return job.result()
+        result = job.result()
+        if not disable_print:
+            print("got result")
+        if meas_fitter:
+            return meas_fitter.filter.apply(result)
+        else:
+            return result
 
     def one_dimensional_job(self, config: Config):
         """
@@ -168,7 +174,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         # should return an output Config object
         pass
 
-    def get_observables_1D(self, config, job):
+    def get_observables_1D(self, config, job, calib_dict = None):
         """
         performs self.get_observables in a 1d loop.
 
@@ -186,8 +192,13 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             raise ValueError("config must have exactly one iterable Parameter")
 
         variable_param = config.get_iterables()[0]
+        #creadout calibration
+        if calib_dict:
+            meas_fitter=qu.get_calib_meas_fitter(*calib_dict)
+        else:
+            meas_fitter=None
 
-        result = self.wait_result(job)
+        result = self.wait_result(job, meas_fitter)
 
         results_dict = read_qiskit_result(result)
 
@@ -220,8 +231,8 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         step_list = variable_config.get_labber_step_list()
 
         # get observables from one iteration of first job: #TODO: check that a job exists
-        single_run_rho = read_qiskit_result(self.wait_result(self.sweep_jobs[0]))["density_matrices"][0]
-        single_run_counts = read_qiskit_result(self.wait_result(self.sweep_jobs[0]))["counts"][0]
+        single_run_rho = read_qiskit_result(self.wait_result(self.sweep_jobs[0],disable_print=True))["density_matrices"][0]
+        single_run_counts = read_qiskit_result(self.wait_result(self.sweep_jobs[0], disable_print=True))["counts"][0]
         single_run_config = deepcopy(config)
         for var in variable_config.param_list:
             single_run_config.set_parameter(name=var.name, value=var.value[0])
