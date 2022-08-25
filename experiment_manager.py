@@ -1,4 +1,6 @@
-
+#TODO add function add_tag to labber
+#TODO add tags for measurement vs simulation
+#TODO add tags for backend
 import typing
 from typing import Iterable
 from copy import deepcopy
@@ -456,6 +458,26 @@ class AsyncExperiment(Experiment):
             self.results.append(self.wait_result(result))
 
 
+class QiskitExperiment(AsyncExperiment):
+    def get_circ(self, config: Config):
+        # to be implemented in child class. sohuld return a qiskit.QuantmCircuit object
+        raise NotImplemented('get_circ method not implemented')
+
+    def run(self, config: Config):
+        """
+        runs the ciscuit :param config:Config with constant (not iterated) Parameters that are used in self.get_circ(
+        ), and a parameter called backend with a qiskit backend
+
+        :return: a qiskit job.
+        """
+        job = config.backend.value.run(self.get_circ(config))
+        return job
+
+    def wait_result(self, job):
+        return job.result()
+
+    # def get_counts(self, result):
+
 class QiskitExperimentDensityMat(AsyncExperiment):
     """
     an abstract class to be used as a parent for user-defined classes.
@@ -481,7 +503,13 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         """
         if config.skip_simulation.value:
             return
-        job = config.backend.value.run(self.get_circ(config))
+        if 'shots' in config.get_names_list():
+            shots = config.shots.value
+        else:
+            shots = 1024
+        print("shots")
+        print(shots)
+        job = config.backend.value.run(self.get_circ(config),shots=shots)
         return job
 
     def wait_result(self, job):
@@ -504,6 +532,14 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         :param config:Config with exactly one iterated parameter
         :return:  a qiskit job
         """
+        if config.skip_simulation.value:
+            return
+        if 'shots' in config.get_names_list():
+            shots = config.shots.value
+        else:
+            shots = 1024
+
+
         # verify input:
         if len(config.get_iterables()) != 1:
             raise ValueError("config must have exactly one iterable Parameter")
@@ -517,7 +553,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             # print(current_config.param_list)
             circs.append(self.get_circ(current_config))
 
-        job = config.backend.value.run(circs)
+        job = config.backend.value.run(circs,shots=shots)
         self._async_results.append(job)
         print('1D job sent in:')
         toc()
@@ -644,7 +680,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         for param in variable_config.param_list:
             labber_tags.append(f'loop on {[param.name]}')
 
-        logfile.setTags()
+        logfile.setTags(labber_tags)
         for index, job in enumerate(self.sweep_jobs):
             print(f'reading result from job {index + 1} out of {len(self.sweep_jobs)}...')
             tic()
