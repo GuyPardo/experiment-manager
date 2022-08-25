@@ -1,6 +1,9 @@
 #TODO add function add_tag to labber
 #TODO add tags for measurement vs simulation
 #TODO add tags for backend
+
+
+
 import typing
 from typing import Iterable
 from copy import deepcopy
@@ -11,6 +14,7 @@ import Labber
 from tictoc import tic, toc
 from general_utils import enumerated_product
 import labber_util as lu
+
 
 
 @dataclass
@@ -501,6 +505,7 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
         :return: a qiskit job.
         """
+        #TODO add calibration
         if config.skip_simulation.value:
             return
         if 'shots' in config.get_names_list():
@@ -532,6 +537,8 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         :param config:Config with exactly one iterated parameter
         :return:  a qiskit job
         """
+
+
         if config.skip_simulation.value:
             return
         if 'shots' in config.get_names_list():
@@ -544,7 +551,11 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         if len(config.get_iterables()) != 1:
             raise ValueError("config must have exactly one iterable Parameter")
         variable_param = config.get_iterables()[0] # config.get_iterables() is a list of length 1
+
+
         tic()
+
+
         circs = []
         for val in variable_param.value:
             current_param = Parameter(variable_param.name, val, units=variable_param.units)
@@ -552,6 +563,11 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             current_config.set_parameter(name=current_param.name, value=current_param.value)
             # print(current_config.param_list)
             circs.append(self.get_circ(current_config))
+
+        # readout calibration:
+        if config.calib_shots.value>0:
+            n_qubits = max_qubit_number(circs)
+            calib_job, state_labels = run_calib(config.backend.value, n_qubits,)
 
         job = config.backend.value.run(circs,shots=shots)
         self._async_results.append(job)
