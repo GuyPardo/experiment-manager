@@ -1,5 +1,9 @@
-import os
-import sys
+#TODO add function add_tag to labber
+#TODO add tags for measurement vs simulation
+#TODO add tags for backend
+
+
+
 import typing
 from typing import Iterable
 from copy import deepcopy
@@ -7,11 +11,10 @@ import numpy as np
 from beautifultable import BeautifulTable
 from dataclasses import dataclass
 import Labber
-import itertools as iter
+from tictoc import tic, toc
 from general_utils import enumerated_product
+import labber_util as lu
 
-sys.path.append(os.path.abspath(r"G:\My Drive\guy PHD folder\util"))
-import Labber_util as lu
 
 
 @dataclass
@@ -27,18 +30,24 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
     def __init__(self, name: str, value, units=None, is_iterated=None):
         """
         creates a Parameter object
+
         :param name: str -  name of the parameter
+
         :param value: any type -  value of the parameter
-        :param units: str  - physical units of the parameter, by default 'n.u.' = no units, which is not exactly the same thing as a.u. (arbitrary units).
-        :param is_iterated: bool. detemines whether the value is constant or iterated. if iterated, then value should be an Iterable.
-                                    by default self.is_iterated is defined according to whether value is an Iterable, but thie can be changed if you want, for example, a constant value that is a list.
+
+        :param units: str or None  - physical units of the parameter. for display in Labber, plots etc.
+
+        :param is_iterated: bool. determines whether the value is constant or iterated. if iterated, then value should
+        be a python iterable object. by default self.is_iterated is defined according to whether value is an iterable,
+        but this can be changed if you want, for example, a constant value that is a list.
+
         """
 
         self.name = name
         self.value = value
         self.units = units
 
-        if is_iterated == None:
+        if is_iterated is None:
             if isinstance(self.value, Iterable):
                 self.is_iterated = True
             else:
@@ -49,25 +58,78 @@ class Parameter:  # TODO - I realized this class can be used for output data as 
 
 class Config:  # TODO - I realized this class can be used for output data as well. consider changing the name
     """
-    this is an envelope-class for a list of Parameter objects with some useful methods.
+    This is an envelope-class for a list of Parameter objects with some useful methods.
+    The class is used in two main ways:
+    1. to store and define a configuration of an experiment to pass to Experiment class methods.
+    2. to store an output of an experiment. in this case iterated Parameters will be treated as vector logs in Labber.
+
+    attributes: param_list - the list of Parameters
+    additionally each parameter in the list is added as an attribute according to the Parameter's name attribute
+
+    #example:
+    config = Config(Parameter('frequency', 4e9, 'Hz'),
+                    Parameter('amplitude',1.0,'Volts'))
+
+    #creates a Config object with attributes:
+    config.param_list = [Parameter('frequency', 4e9, 'Hz'),
+                        Parameter('amplitude',1.0,'Volts')]
+    config.frequency = Parameter('frequency', 4e9, 'Hz')
+    config.amplitude = Parameter('amplitude',1.0,'Volts')
     """
 
-    # TODO easier access to values? right now one has to do config.param_name.value
+
     def __init__(self, *param_list):
         """
-        creates a Config object from a list of Parameter objects
-        :param param_list: a list of Parameter objects
+        creates a Config object from a list of Parameter objects, and initializes attribute self.param_list
+
+        This is an envelope-class for a list of Parameter objects with some useful methods.
+        The class is used in two main ways:
+        1. to store and define a configuration of an experiment to pass to Experiment class methods.
+        2. to store an output of an experiment. in this case iterated Parameters will be treated as vector logs in Labber.
+
+        attributes: param_list - the list of Parameters
+        additionally each parameter in the list is added as an attribute according to the Parameter's name attribute
+
+        #example:
+        config = Config(Parameter('frequency', 4e9, 'Hz'),
+                        Parameter('amplitude',1.0,'Volts'))
+
+        #creates a Config object with attributes:
+        config.param_list = [Parameter('frequency', 4e9, 'Hz'),
+                            Parameter('amplitude',1.0,'Volts')]
+        config.frequency = Parameter('frequency', 4e9, 'Hz')
+        config.amplitude = Parameter('amplitude',1.0,'Volts')
+
+        :param param_list: a list of Parameter objects that is stored in self.param_list
         """
         self.param_list = list(param_list)
         for param in self.param_list:
             setattr(self, param.name, param)
 
     def add_parameter(self, param: Parameter):
+        """
+        adds a Parameter to the Config.
+        :param param:Parameter to be added.
+        """
         self.param_list.append(param)
         setattr(self, param.name, param)
 
     def set_parameter(self, **kwargs):
+        """
+        #TODO this function is ugly. make a new one.
+        set Parameter to new value, and optionally change whether it is iterated.
+        self.set_parameter(name = 'a_parameter_name', value  = new_value)
+        changes the value of parameter self.a_parameter_name to new_value.
+        the Parameter's is_iterated might be changed according to whether the new value is an iterable object.
 
+        self.set_parameter(name = 'a_parameter_name', value  = new_value, is_iterated=is_iterated)
+        where is_iterated is a bool, allows the user to choose manually the new is_iterated value for the Parameter.
+
+        the choice of Parameter can also be done by index instead of by name:
+        self.set_parameter(index = index, value  = new_value)
+        where index is an integer
+        :param kwargs: a dict with specific fields, see above.
+        """
         if "name" in kwargs.keys():
             getattr(self, kwargs["name"]).value = kwargs["value"]
             if "is_iterated" in kwargs.keys():
@@ -82,23 +144,54 @@ class Config:  # TODO - I realized this class can be used for output data as wel
             else:
                 self.param_list[kwargs["index"]].is_iterated = isinstance(kwargs["value"], Iterable)
 
-    def get_dict(self):
+    def get_parameters_dict(self):
+        """
+        get a dictionary of the Config's Parameters
+        :return: dict with keys that are the Parameters names and values that are the Parameters objects themselves
+        """
         d = {}
         for param in self.param_list:
             d[param.name] = param
         return d
 
-    #TODO
-    def get_dataclass_object_with_values(self):
-        pass
+    def get_values_dict(self):
+        """
+        get a dictionary of the Config's Parameters values
+        :return: dict with keys that are the Parameters names and values that are the Parameters values
+        """
+        d = {}
+        for param in self.param_list:
+            d[param.name] = param.value
+        return d
+
+    def get_names_list(self):
+        """
+        get a list of the Config's Parameters names
+        :return: list
+        """
+        name_list = []
+        for param in self.param_list:
+            name_list.append(param.name)
+        return name_list
 
     def get_values(self):
+        """
+        TODO rename to get_values_list()?
+        get a list of the Config's Parameters values
+        :return: list
+        """
         values = []
         for param in self.param_list:
             values.append(param.value)
         return values
 
     def get_iterables(self):
+        """
+        # TODO: it might make more sense to return a new Config instead. this will require changing a lot of written
+           code but it could be worth it
+         get a list of the Parameters in self that are iterated Parameters.
+         :return: list
+        """
         iter_list = []
         for param in self.param_list:
             if param.is_iterated:
@@ -106,6 +199,12 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         return iter_list
 
     def get_constants(self):
+        """
+        # TODO: it might make more sense to return a new Config instead. this will require changing a lot of written
+           code but it could be worth it
+         get a list of the Parameters in self that are NOT iterated Parameters.
+         :return: list
+        """
         const_list = []
         for param in self.param_list:
             if not param.is_iterated:
@@ -113,6 +212,10 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         return const_list
 
     def get_metadata_table(self):
+        """
+        get a nice table with all the Parameters in self, their values and their units.
+        :return: a BeautifulTable object
+        """
         table = BeautifulTable()
         table.columns.header = ["name", "value", "units"]
         for param in self.param_list:
@@ -122,13 +225,26 @@ class Config:  # TODO - I realized this class can be used for output data as wel
                 val = param.value
             table.rows.append([param.name, val, param.units])
             table.set_style(BeautifulTable.STYLE_NONE)
-            table.precision=20
+            table.precision = 20
         return table
 
     def is_constant(self):
-        pass  # TODO - implement
+        """
+        determines whether the Config is constant (i.e. whether all its Parameters are not iterated)
+        :return: bool
+        """
+        return not bool(len(self.get_iterables()))
 
     def get_labber_step_list(self):
+        """
+        get a Labber step list from the iterated Parameters of config.
+
+        comment: the step list order is reversed relative to the Parameters order within the Config because Labber
+        always treats the first variable in the trace list as the innermost loop, and in the loop
+        implementation in python it is easier  to do the opposite.
+
+        :return: a list of dicts according to Labber's step list requirements.
+        """
         iterated_config = Config(*self.get_iterables())  # build a new config with just the iterables of self
         steplist = []
         for param in iterated_config.param_list:
@@ -141,7 +257,12 @@ class Config:  # TODO - I realized this class can be used for output data as wel
         return steplist
 
     def get_labber_log_list(self):
-        # thinking about the Config object as an output data
+        """
+        Thinking about the Config as storing output of a single Experiment run, gets a Labber log list
+        corresponding to the Parameters in the Config where iterated Parameters are treated as Labber vector logs.
+
+         :return: a list of dicts according to Labber log list requirements
+        """
         loglist = []
         for param in self.param_list:
             if param.units:
@@ -151,16 +272,40 @@ class Config:  # TODO - I realized this class can be used for output data as wel
 
         return loglist
 
+    #TODO
+    def get_loop_dimension(self):
+        pass
+
+    def get_total_iteration_count(self):
+        """
+        returns the total loop dimensions of Config (the product of the lengths of all the iterated Parameters)
+        :return: int
+        """
+        iter_count = 1
+        for var in self.get_iterables():
+            iter_count = iter_count*len(var.value)
+        return iter_count
+
+#--------------- end of config class definition ----------------------#
 
 def get_labber_trace(output_config_list):
+    """
+    Get a labber trace dict from a 1D loop data
+    :param output_config_list:a list of Config objects, each one storing output data from a single Experiment run
+    s.t. the entire list stores the result of  a 1D  loop
+    :return: a dict according to Labber trace requirements
+    """
+    # initialize dict
     labber_dict = {}
-
+    # initialize keys according to the first item in the loop
     for param in output_config_list[0].param_list:
         labber_dict[param.name] = []
-
+    # set values
     for c in output_config_list:
         for param in c.param_list:
             labber_dict[param.name].append(param.value)
+
+    # treat vector values that are not iterated
     for param in output_config_list[0].param_list:
         if not param.is_iterated:
             labber_dict[param.name] = np.array(labber_dict[param.name])
@@ -169,8 +314,9 @@ def get_labber_trace(output_config_list):
 
 class Experiment:
     """
+    an abstract class (to be used as a parent class for user-defined classes).
     a procedure (a computation or physical experiment with some controlled hardware) that you might like to run many
-    times with different configurations.
+    times with different configurations. and save the results to Labber
     """
 
     def __init__(self):
@@ -212,9 +358,8 @@ class Experiment:
          config.
         :param config: a Config object with some iterated Parameters ("varialbes") and some non-iterated ones ("constants)
         :param save_to_labber: bool.
-        :param labber_log_name: str, optional. if not supplied use automatic naming scheme #TODO : describe here the scheme
+        :param labber_log_name: str, optional. if not supplied use automatic naming scheme that prevents overwrite
         :return: none currently. for now I want to use the save_to_labber feature anyway.
-        TODO: save the data in python as well. his will be more important for asynchronic experiments
         """
 
         variable_config = Config(*config.get_iterables())  # a Config with only the variables
@@ -224,7 +369,6 @@ class Experiment:
 
         # get labber step list:
         step_list = variable_config.get_labber_step_list()
-
 
         # create a constant configuration for test run
         curr_config = deepcopy(config)
@@ -236,7 +380,6 @@ class Experiment:
 
         # get labber log list
         log_list = test_result.get_labber_log_list()
-
 
         print("setp list")
         print(step_list)
@@ -255,7 +398,7 @@ class Experiment:
                 class_name = type(self).__name__
                 log_name = f'{class_name}_sweep'
 
-            log_name = lu.get_log_name(log_name) # adds automatic numbering to avoid overwrite
+            log_name = lu.get_log_name(log_name)  # adds automatic numbering to avoid overwrite
 
             # create log file
             logfile = Labber.createLogFile_ForData(log_name, log_list, step_list)
@@ -284,179 +427,57 @@ class Experiment:
 
 
 class AsyncExperiment(Experiment):
+    """
+    an abstract class to be used as a parent for user-defined classes
+    a child class of Experiment for dealing with asynchronous executions
+    """
 
     def __init__(self):
+        """
+        creates an AsyncExperiment objects and initializes results (=finished results) and _async_results (unfinished
+        jobs) attributes.
+        """
         self._async_results = []
         self.results = []
 
     @classmethod
     def wait_result(async_result):
+        # this should be implemented in the child class.
         pass
 
     def _run(self, args, **kwargs):
+        """
+        adds job to self._async_results list
+        :param args:
+        :param kwargs:
+        """
         self._async_results.append(self.run(*args, **kwargs))
 
     def wait_results(self):
+        """
+        performs self.wait_result ( implemented in child clas by user) for all jobs in self._async_results
+        :return:
+        """
         for result in self._async_results:
             self.results.append(self.wait_result(result))
 
 
-class QiskitExperimentDensityMat(AsyncExperiment):
-    """
-    an experiment done on qiskit simulator where each run is the execution of a single circuit, saving the resulting
-    density matrix, and then calcualting some observable(s) from it.
-    """
-
-    def get_circ(self, config:Config):
-        #to be implemented in child class
-        raise  NotImplemented('get_circ method not implemented')
+class QiskitExperiment(AsyncExperiment):
+    def get_circ(self, config: Config):
+        # to be implemented in child class. sohuld return a qiskit.QuantmCircuit object
+        raise NotImplemented('get_circ method not implemented')
 
     def run(self, config: Config):
+        """
+        runs the ciscuit :param config:Config with constant (not iterated) Parameters that are used in self.get_circ(
+        ), and a parameter called backend with a qiskit backend
+
+        :return: a qiskit job.
+        """
         job = config.backend.value.run(self.get_circ(config))
         return job
 
     def wait_result(self, job):
-        # return a list of density matrix objects
-        result = []
-        for i in range(len(job.result().results)):
-            result.append(job.result().data(i)["density_matrix"])
-        return result
+        return job.result()
 
-    def one_dimensional_job(self, config: Config):
-        variable_param = config.get_iterables()[0]
-        circs = []
-        for val in variable_param.value:
-            current_param = Parameter(variable_param.name, val, units=variable_param.units)
-            current_config = deepcopy(config)
-            current_config.set_parameter(name=current_param.name, value=current_param.value)
-            # print(current_config.param_list)
-            circs.append(self.get_circ(current_config))
-
-        job = config.backend.value.run(circs)
-        self._async_results.append(job)
-        return job
-
-    def sweep(self, config):
-        self.sweep_jobs = []
-        self.sweep_configs = []
-        variable_config = Config(*config.get_iterables())  # a Config with only the variables
-
-        # the last variable is the trace parameter (inner-most loop):
-        tracing_parameter = variable_config.param_list[-1]
-
-        curr_config = deepcopy(config)
-        for variable in variable_config.param_list[:-1]:
-            curr_config.set_parameter(name=variable.name, value=0)
-
-        outer_variables = Config(*variable_config.param_list[:-1])  # "outer" means all but the inner-most loop
-        # N-dimensional loop with itertools.product: # (actually N-1 )
-
-
-        for indices, vals in enumerated_product(*outer_variables.get_values()):
-            # update parameters to current values:
-            for i, param in enumerate(outer_variables.param_list):
-                curr_config.set_parameter(name=param.name, value=vals[i])
-
-            print("running...")
-            # do 1D sweep on the tracing parameter:
-            print(curr_config.param_list) #TODO only print sweep parameters
-            job = self.one_dimensional_job(curr_config)
-            self.sweep_jobs.append(job)
-            self.sweep_configs.append(deepcopy(curr_config))
-
-    def get_observables(self,config:Config, density_matrix):
-        # to be implemented in child class
-        # should return an output Config object
-        pass
-
-    def get_observables_1D(self,config, job):
-        #returns a dict with output config list, and labber trace
-
-        # input verification
-        if not len(config.get_iterables()) == 1:
-            raise ValueError("config must have exactly one iterable Parameter")
-
-        variable_param = config.get_iterables()[0]
-
-        density_matrices = self.wait_result(job)
-        output_config = []
-        config_scalar = deepcopy(config)
-        for index, density_mat in enumerate(density_matrices):
-            config_scalar.set_parameter(name=variable_param.name, value=variable_param.value[index])
-            output_config.append(self.get_observables(config_scalar, density_mat))
-
-        labber_trace = get_labber_trace(output_config)
-
-        return dict(output_config=output_config, labber_trace=labber_trace)
-
-
-    def labber_read(self,config, labber_log_name=None):
-        # create labber log file for nd loop according to config
-        # add entries from self.sweep_jobs using self.get_observables and self.wait_reaults
-        variable_config = Config(*config.get_iterables())  # a Config with only the variables
-
-        # the last variable is the trace parameter (inner-most loop):
-        tracing_parameter = variable_config.param_list[-1]
-
-        # get labber step list:
-        step_list = variable_config.get_labber_step_list()
-
-        # get observables from one iteration of first job: #TODO: check that a job exists
-        single_run_rho = self.wait_result(self.sweep_jobs[0])[0]
-        single_run_config = deepcopy(config)
-        for var in variable_config.param_list:
-            single_run_config.set_parameter(name=var.name, value=var.value[0])
-
-        single_run_observables = self.get_observables(single_run_config, single_run_rho)
-
-        #get labber log list
-        log_list = single_run_observables.get_labber_log_list()
-
-        # build labber logfile
-        # automatic naming:
-        if labber_log_name:
-            log_name = labber_log_name
-        else:
-            class_name = type(self).__name__
-            log_name = f'{class_name}_sweep'
-
-        log_name = lu.get_log_name(log_name)  # adds automatic numbering to avoid overwrite
-        # create log file
-        logfile = Labber.createLogFile_ForData(log_name, log_list, step_list)
-        # add comment w. metadata
-        logfile.setComment(str(config.get_metadata_table()))
-
-        # print("labber log")
-        # print(log_list)
-        # print("labber step")
-        # print(step_list)
-
-        for index, job in enumerate(self.sweep_jobs):
-            print(self.sweep_configs[index].param_list) #TODO only pring sweep parameters
-            result = self.get_observables_1D(self.sweep_configs[index], job)
-            labber_trace = result["labber_trace"]
-            #
-            # print("labber trace")
-            # print(labber_trace)
-            logfile.addEntry(labber_trace)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-####################################################################
-
+    # def get_counts(self, result):
