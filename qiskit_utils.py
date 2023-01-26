@@ -4,6 +4,7 @@ Created on Mon May  2 15:53:33 2022
 
 @author:  GUy
 """
+from typing import Union
 from dataclasses import dataclass
 
 import numpy as np
@@ -25,15 +26,22 @@ import itertools as it
 
 @dataclass
 class Noise:
-    T1: float
-    T2: float
+    T1: Union[float, list]
+    T2: Union[float, list]
 
-    def __init__(self, T1, T2):
+    def __init__(self, T1, T2, n_qubits = 1):
+        if not isinstance(T1, list):
+            T1 = (T1 * np.ones(n_qubits)).tolist()
+        if not isinstance(T2, list):
+            T2 = (T2 * np.ones(n_qubits)).tolist()
+
+        for i in range(len(T1)):
+            if T2[i] > 2 * T1[i]:
+                T2[i] = 2 * T1[i]
+
         self.T1 = T1
-        if T2 > 2 * T1:
-            self.T2 = 2 * T1
-        else:
-            self.T2 = T2
+        self.T2 = T2
+
 
 
 def get_thermal_error_object(T1s, T2s, time_u1=0, time_u2=50, time_u3=100, time_cx=300, time_reset=1000,
@@ -85,7 +93,7 @@ def get_instruction_duration(gates, n_qubits, locality, duration, units='s'):
     qubits = range(n_qubits)
     lst = []
     for i, gate in enumerate(gates):
-        qubit_combinations = list(it.combinations(qubits, locality[i]))
+        qubit_combinations = list(it.permutations(qubits, locality[i]))
         for combination in qubit_combinations:
             tup = (gate, combination, duration[i], units)
             lst.append(tup)
@@ -96,7 +104,8 @@ def thermal_noise_transpile(circuit, T1s, T2s,
                             basis_gates=['u1', 'u2', 'u3', 'cz', 'save_density_matrix'],
                             basis_gate_times=np.array([0, 25, 50, 26, 0]) * 1e-9,
                             basis_gates_locality=[1, 1, 1, 2, 'all'],
-                            time_step=1e-9):
+                            time_step=1e-9,
+                            initial_layout=None):
     # returns a transpiled circuit with basis gates basis_gates, adn thermal noise (implemented with qiskit RelaxationNoisePass)
     # args:
     # circuit: # a circuit
@@ -118,14 +127,16 @@ def thermal_noise_transpile(circuit, T1s, T2s,
 
     trans_circ = transpile(circuit, basis_gates=basis_gates,
                            scheduling_method='asap',
-                           instruction_durations=instruction_durations)
+                           instruction_durations=instruction_durations,
+                           initial_layout=initial_layout)
     return (delay_pass(trans_circ))
 
 
 def get_transpiled(circ, backend, noise=None, basis_gates=['u1', 'u2', 'u3', 'cx', 'save_density_matrix'],
                    basis_gate_times=np.array([0, 50, 100, 300, 0]) * 1e-9,
                    basis_gates_locality=[1, 1, 1, 2, 'all'],
-                   time_step=1e-10):
+                   time_step=1e-10,
+                   initial_layout=None):
     # take care of single cicuitt case
     if not type(circ) == list:
         circ = [circ]
@@ -134,16 +145,15 @@ def get_transpiled(circ, backend, noise=None, basis_gates=['u1', 'u2', 'u3', 'cx
     if noise:
         for j in range(len(circ)):
             N = circ[j].num_qubits
-            T1s = (noise.T1 * np.ones(N)).tolist()
-            T2s = (noise.T2 * np.ones(N)).tolist()
 
-            trans_circ.append(thermal_noise_transpile(circ[j].copy(), T1s, T2s, basis_gates=basis_gates,
+            trans_circ.append(thermal_noise_transpile(circ[j].copy(), noise.T1, noise.T2, basis_gates=basis_gates,
                                                       basis_gate_times=basis_gate_times,
                                                       basis_gates_locality=basis_gates_locality,
-                                                      time_step=time_step))
+                                                      time_step=time_step,
+                                                      initial_layout=initial_layout))
     else:
         for j in range(len(circ)):
-            trans_circ = transpile(circ[j].copy(), backend)
+            trans_circ = transpile(circ[j].copy(), backend,initial_layout=initial_layout, scheduling_method='asap')
 
     if len(trans_circ) == 1:
         return trans_circ[0]
@@ -155,9 +165,9 @@ from qiskit.ignis.mitigation.measurement import complete_meas_cal, CompleteMeasF
 import pickle
 
 
-def run_calib(backend, n_qubits, shots=20000):
+def run_calib(backend, n_qubits, shots=20000, initial_layout=None):
     meas_calib_circs, state_labels = complete_meas_cal(qr=qiskit.QuantumRegister(n_qubits))
-    transpiled_meas_calib = qiskit.transpile(meas_calib_circs, backend)
+    transpiled_meas_calib = qiskit.transpile(meas_calib_circs, backend,initial_layout=initial_layout)
     print(f"sending measurement calibration job for {n_qubits} qubits with {shots} shots")
     job = backend.run(transpiled_meas_calib, shots=shots)
     return job, state_labels

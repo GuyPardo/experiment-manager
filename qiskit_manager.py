@@ -1,3 +1,5 @@
+#TODO transpile etc here instead of in Z2 sandbox
+#TODO add job tags and names for IBM site
 import importlib
 import qiskit_utils as qu
 import experiment_manager
@@ -5,6 +7,7 @@ importlib.reload(qu)
 importlib.reload(experiment_manager)
 from experiment_manager import *
 import pickle
+
 
 def read_qiskit_result(result, label="density_matrix"):
     """
@@ -77,12 +80,14 @@ class QiskitExperimentDensityMat(AsyncExperiment):
         result = job.result()
         if not disable_print:
             print("got result")
-        if meas_fitter:
+        if meas_fitter is not None:
+            if not disable_print:
+                print("applying readout calibration")
             return meas_fitter.filter.apply(result)
         else:
             return result
 
-    def one_dimensional_job(self, config: Config):
+    def one_dimensional_job(self, config: Config, job_name=None, job_tags=None):
         """
         returns a qiskit job for calculating self.get_circ in a 1d loop. and stores it in self._async_results
         :param config:Config with exactly one iterated parameter
@@ -117,13 +122,13 @@ class QiskitExperimentDensityMat(AsyncExperiment):
 
         # readout calibration:
         if config.calib_shots.value>0:
-            n_qubits = qu.max_qubit_number(circs)
-
-            calib_job, state_labels = qu.run_calib(config.backend.value, n_qubits,shots=config.calib_shots.value)
+            # n_qubits = qu.max_qubit_number(circs)
+            n_qubits = config.N.value #TODO this is not general.
+            calib_job, state_labels = qu.run_calib(config.backend.value, n_qubits,shots=config.calib_shots.value,initial_layout=config.initial_layout.value)
             calib_dict = dict(calib_job=calib_job, state_labels=state_labels)
             self.calibrations.append(calib_dict)
 
-        job = config.backend.value.run(circs,shots=shots)
+        job = config.backend.value.run(circs,shots=shots, job_name = job_name, job_tags=job_tags)
         self._async_results.append(job)
         print('1D job sent in:')
         toc()
@@ -159,14 +164,16 @@ class QiskitExperimentDensityMat(AsyncExperiment):
             # update parameters to current values:
             for i, param in enumerate(outer_variables.param_list):
                 curr_config.set_parameter(name=param.name, value=vals[i])
-
+            job_tags=[]
             print(f"running job {counter} out of {num_jobs}...")
             # do 1D sweep on the tracing parameter:
             print('current configuration:')
             for param in outer_variables.param_list:
                 print(getattr(curr_config, param.name))
+                job_tags.append(f"{param.name}={getattr(curr_config, param.name)}")
 
-            job = self.one_dimensional_job(curr_config)
+            job_name = f'{type(self).__name__}_N={config.N.value}'
+            job = self.one_dimensional_job(curr_config, job_name=job_name, job_tags=job_tags)
             self.sweep_jobs.append(job)
             self.sweep_configs.append(deepcopy(curr_config))
             counter = counter + 1
